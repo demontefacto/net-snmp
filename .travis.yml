@@ -10,4 +10,4 @@ script: ./configure --with-defaults && make && cd testing && ./RUNFULLTESTS
 # versions of perl and python for testing)
 before_install:
  - sudo apt-get update -qq
- - sudo apt-get install -qq libperl-dev libpython-dev
+ - sudo apt-get install -qq libperl-dev libpython2.7-dev python2.7-dev
