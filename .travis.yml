@@ -3,3 +3,9 @@ compiler:
  - clang
  - gcc
 script: ./configure --with-defaults && make && cd testing && ./RUNFULLTESTS
+# Can we provide perl and python this way, or do these only work
+# for perl / python language projects?
+perl:
+ - "5.16"
+python:
+ - "2.7"
