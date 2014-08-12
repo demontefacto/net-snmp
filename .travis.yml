@@ -2,3 +2,4 @@ language: c
 compiler:
  - clang
  - gcc
+script: ./configure --with-defaults && make && cd testing && ./RUNFULLTESTS
