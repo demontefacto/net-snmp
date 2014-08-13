@@ -11,4 +11,4 @@ script: ./configure --with-defaults --with-python-modules --with-security-module
 # also need openssl for TLS support
 before_install:
  - sudo apt-get update -qq
- - sudo apt-get install -qq libperl-dev python2.7-dev openssl-dev
+ - sudo apt-get install -qq libperl-dev python2.7-dev libssl-dev
