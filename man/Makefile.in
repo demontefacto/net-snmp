@@ -85,11 +85,20 @@ all: $(TARGETS) standardall manaliases
 
 manaliases: Makefile $(MAN3_API)
 	touch manaliases
-	@result=0 ; \
-        for i in $(MAN3_API) ; do				  \
+	@for i in $(MAN3_API) ; do				  \
             for j in `$(SED) -n '/^.SH NAME/,/^.SH SYNOPSIS/p' $$i  | $(SED) -e 's/.- .*//' | $(SED) 's/,.*//'  | $(EGREP) -v '^.SH ' `; do \
 		echo "making man page alias $$j -> $$i APIs" ;    \
 		echo ".so man3/$$i" > $$j.3 ; 		  \
+	    done                                                  \
+	done
+
+$(MANALIASES): manaliases
+
+# TODO: checkaliases should be part of all if you're a developer.
+checkaliases:
+	@result=0 ; \
+        for i in $(MAN3_API) ; do				  \
+            for j in `$(SED) -n '/^.SH NAME/,/^.SH SYNOPSIS/p' $$i  | $(SED) -e 's/.- .*//' | $(SED) 's/,.*//'  | $(EGREP) -v '^.SH ' `; do \
 		if expr "$(MANALIASES)" : ".*$$j\\.3" > /dev/null ; \
 		then \
 		  : ; \
@@ -101,8 +110,6 @@ manaliases: Makefile $(MAN3_API)
 	    done                                                  \
 	done ; \
 	exit $$result
-
-$(MANALIASES): manaliases
 
 agentxtrap.1: $(srcdir)/agentxtrap.1.def ../sedscript
 	$(SED) -f ../sedscript < $(srcdir)/agentxtrap.1.def > agentxtrap.1
