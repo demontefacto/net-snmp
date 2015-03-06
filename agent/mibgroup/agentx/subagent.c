@@ -382,9 +382,6 @@ handle_agentx_packet(int operation, netsnmp_session * session, int reqid,
         break;
 
     case AGENTX_MSG_GETBULK:
-        /*
-         * WWWXXX 
-         */
         DEBUGMSGTL(("agentx/subagent", "  -> getbulk\n"));
         pdu->command = SNMP_MSG_GETBULK;
 

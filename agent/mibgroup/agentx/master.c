@@ -356,36 +356,102 @@ agentx_got_response(int operation,
     } else if (cache->reqinfo->mode == MODE_GET ||
                cache->reqinfo->mode == MODE_GETNEXT ||
                cache->reqinfo->mode == MODE_GETBULK) {
+        int i;
+        int non_rep = 0;
+        int max_rep = 1;
+        netsnmp_request_info *first_repeater = NULL, *nextrequest;
+
+        if (cache->reqinfo->mode == MODE_GETBULK) {
+            non_rep = cache->reqinfo->asp->pdu->non_repeaters;
+            max_rep = cache->reqinfo->asp->pdu->max_repetitions;
+        }
+
         /*
          * Replace varbinds for data request types, but not SETs.  
+         *
+         * In the getbulk case, what we get back from the subagent is
+         * N + M*R responses.
+         *
+         * Each of the N responses just gets copied back to the requestvb.
+         * However, for the repeaters, we need to walk all M.  If
+         * requests->repeat > 0, we need to copy it to the request, otherwise
+         * we just skip it (think of the case where the previous handler
+         * has already satisfied some of the repeats).
+         *
+         * Given 2 non-repeaters, max-repetitions 3, and the following
+         * request:
+         * X Y P D Q
+         * AgentX will return us the following response:
+         * X.0 Y.0 P.1 D.1 Q.1 P.2 D.2 Q.2 P.3 D.3 Q.3
+         * We need to add each P/D/Q to the variable list in the
+         * requestvb list, which has been preallocated for us.
+         * We do this by, when we get to the end of the non-repeaters,
+         * saving request in the first_repeater variable.  If, when
+         * we get to the end and request->next == NULL, there are
+         * still repetitions left, we set request back to first_repeater
+         * and continue through the loop.
+         *
+         * While there are repeats left, we advance requestvb via
+         * the next_variable pointer.  When we're done, we set it back
+         * to requestvb_start.  (XXX is this really right? Do we always
+         * get requestvb == requestvb_start, or is it sometimes right
+         * to leave requestvb advanced?  Maybe only reset requestvb
+         * if setting it to ->next_variable would set it to NULL?)
+         *
+         * If we have endOfMibView, then we skip copying that response.
+         * If we get endOfMibView for each of the repeaters, that is
+         * an indication that we've gotten to the end of the subagent's
+         * MIB on all columns so will result in fewer than M repeats.
+         *
+         * XXX The spec says that the subagent can stop adding variables
+         * basically at any time, so we should be able to handle getting
+         * fewer than all of the repeats.
          */
         DEBUGMSGTL(("agentx/master",
                     "agentx_got_response() beginning...\n"));
-        for (var = pdu->variables, request = requests; request && var;
-             request = request->next, var = var->next_variable) {
+        for (i = 0, var = pdu->variables, request = requests; request && var;
+             i++, request = nextrequest, var = var->next_variable) {
+            nextrequest = request->next;
             /*
              * Otherwise, process successful requests
              */
             DEBUGMSGTL(("agentx/master",
-                        "  handle_agentx_response: processing: "));
-            DEBUGMSGOID(("agentx/master", var->name, var->name_length));
-            DEBUGMSG(("agentx/master", "\n"));
-            if (netsnmp_ds_get_boolean(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_VERBOSE)) {
-                DEBUGMSGTL(("agentx/master", "    >> "));
-                DEBUGMSGVAR(("agentx/master", var));
-                DEBUGMSG(("agentx/master", "\n"));
+                        "  handle_agentx_response: processing requestvb_start: "));
+            /* XXX: requestvb_start might be confusing for partially satisfied requests? */
+            DEBUGMSGOID(("agentx/master", request->requestvb_start->name, request->requestvb_start->name_length));
+            DEBUGMSG(("agentx/master", " repeats=%d\n", request->repeat));
+
+            if (non_rep > 0) {
+                non_rep--;
+            } else if (NULL == first_repeater) {
+                first_repeater = request;
             }
 
+            DEBUGMSGTL(("agentx/master", "non_rep = %d max_rep = %d first_repeater set? %d\n",
+                        non_rep, max_rep, (NULL != first_repeater)));
+            DEBUGMSGTL(("agentx/master",
+                        "  handle_agentx_response: subagent response: "));
+            DEBUGMSGOID(("agentx/master", var->name, var->name_length));
+            DEBUGMSG(("agentx/master", "\n"));
+            DEBUGMSGTL(("verbose:agentx/master", "    >> "));
+            DEBUGMSGVAR(("verbose:agentx/master", var));
+            DEBUGMSG(("verbose:agentx/master", "\n"));
+
             /*
-             * update the oid in the original request 
+             * update the oid in the original request
              */
-            if (var->type != SNMP_ENDOFMIBVIEW) {
+            if (var->type != SNMP_ENDOFMIBVIEW && request->repeat >= 0) {
+                request->repeat--;
                 snmp_set_var_typed_value(request->requestvb, var->type,
                                          var->val.string, var->val_len);
                 snmp_set_var_objid(request->requestvb, var->name,
                                    var->name_length);
+                request->requestvb = request->requestvb->next_variable;
             }
             request->delegated = REQUEST_IS_NOT_DELEGATED;
+            if (NULL == nextrequest && max_rep-- > 1 && var->next_variable) {
+                nextrequest = first_repeater;
+            }
         }
 
         if (request || var) {
@@ -393,14 +459,25 @@ agentx_got_response(int operation,
              * ack, this is bad.  The # of varbinds don't match and
              * there is no way to fix the problem 
              */
+            /* XXX note that it can be normal for getbulk to run out of vars. */
             snmp_log(LOG_ERR,
                      "response to agentx request illegal.  bailing out.\n");
             netsnmp_set_request_error(cache->reqinfo, requests,
                                       SNMP_ERR_GENERR);
+        } else {
+            /* We advanced requestvb during processing above; if we fell off the
+             * end, set it back. */
+            for (request = requests; request; request = request->next) {
+                if (request->requestvb == NULL) {
+                    request->requestvb = request->requestvb_start;
+                }
+            }
         }
 
+#ifdef NETSNMP_AGENTX_NO_BULK
         if (cache->reqinfo->mode == MODE_GETBULK)
             netsnmp_bulk_to_next_fix_requests(requests);
+#endif
     } else {
         /*
          * mark set requests as handled 
@@ -461,8 +538,15 @@ agentx_master_handler(netsnmp_mib_handler *handler,
         pdu = snmp_pdu_create(AGENTX_MSG_GETNEXT);
         break;
 
-    case MODE_GETBULK:         /* WWWXXX */
+    case MODE_GETBULK:
+#ifdef NETSNMP_AGENTX_NO_BULK
+        /* WWWXXX */
         pdu = snmp_pdu_create(AGENTX_MSG_GETNEXT);
+#else
+        pdu = snmp_pdu_create(AGENTX_MSG_GETBULK);
+        pdu->non_repeaters = reqinfo->asp->pdu->non_repeaters;
+        pdu->max_repetitions = reqinfo->asp->pdu->max_repetitions;
+#endif
         break;
 
 #ifndef NETSNMP_NO_WRITE_SUPPORT

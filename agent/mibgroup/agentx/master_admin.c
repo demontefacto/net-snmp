@@ -211,7 +211,7 @@ register_agentx_list(netsnmp_session * session, netsnmp_pdu *pdu)
         flags = FULLY_QUALIFIED_INSTANCE;
     }
 
-    reg = netsnmp_create_handler_registration(buf, agentx_master_handler, pdu->variables->name, pdu->variables->name_length, HANDLER_CAN_RWRITE | HANDLER_CAN_GETBULK); /* fake it */
+    reg = netsnmp_create_handler_registration(buf, agentx_master_handler, pdu->variables->name, pdu->variables->name_length, HANDLER_CAN_RWRITE | HANDLER_CAN_GETBULK);
     if (!session->myvoid) {
         session->myvoid = malloc(sizeof(cacheid));
         cacheid = netsnmp_allocate_globalcacheid();

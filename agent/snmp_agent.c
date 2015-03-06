@@ -2398,7 +2398,17 @@ netsnmp_create_subtree_cache(netsnmp_agent_session *asp)
                         } else {
                             vbptr = vbptr->next_variable;
                             vbptr->name_length = 0;
-                            vbptr->type = ASN_NULL;
+                            if (varbind_ptr->type == ASN_PRIV_INCL_RANGE ||
+                                  varbind_ptr->type == ASN_PRIV_EXCL_RANGE) {
+                                /* copy oid */
+                                /* note that even if it's an inclusive range for
+                                 * the first request, it ends up being exclusive
+                                 * for further repetitions. */
+                                snmp_set_var_typed_value(vbptr, ASN_PRIV_EXCL_RANGE,
+                                        varbind_ptr->val.objid, varbind_ptr->val_len);
+                            } else {
+                                vbptr->type = ASN_NULL;
+                            }
                             asp->bulkcache[bulkcount++] = vbptr;
                         }
                     }
@@ -3368,6 +3378,13 @@ handle_pdu(netsnmp_agent_session *asp)
                  * ranges.  
                  */
                 inclusives++;
+            } else if (v->type == ASN_PRIV_EXCL_RANGE) {
+                /*
+                 * Leave the type for now (as above).
+                 * We don't need to set anything for inclusive
+                 * ranges, but we need to make sure that the
+                 * range is honored.
+                 */
             } else {
                 snmp_set_var_typed_value(v, ASN_NULL, NULL, 0);
             }
