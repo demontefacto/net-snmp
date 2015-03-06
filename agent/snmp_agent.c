@@ -2995,8 +2995,26 @@ check_getnext_results(netsnmp_agent_session *asp)
                      * it was inclusive, but no results.  Still retry this
                      * search. 
                      */
+                    DEBUGMSGTL(("snmp_agent",
+                                "request %d not found, retry (and turn off inclusive)\n",
+                                request->index));
+                    request->inclusive = 0;
                     snmp_set_var_typed_value(request->requestvb,
                                              ASN_PRIV_RETRY, NULL, 0);
+                } else {
+                    /*
+                     * We got an answer: next time around, we can't be
+                     * inclusive or we will repeat the same answer.
+                     */
+                    /* XXXWCF I think this case is when the beginning of
+                     * the range *has* an answer, e.g., the registered
+                     * range begins at sysContact.0.  Need to test
+                     * (can we register such a range?)
+                     */
+                    DEBUGMSGTL(("snmp_agent",
+                                "request %d turning off inclusive\n",
+                                request->index));
+                    request->inclusive = 0;
                 }
             }
 
