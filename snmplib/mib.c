@@ -3442,6 +3442,38 @@ sprint_realloc_variable(u_char ** buf, size_t * buf_len,
         return snmp_strcat(buf, buf_len, out_len, allow_realloc,
                            (const u_char *)
                            "No more variables left in this MIB View (It is past the end of the MIB tree)");
+    } else if (variable->type == ASN_PRIV_INCL_RANGE ||
+               variable->type == ASN_PRIV_EXCL_RANGE) {
+        const u_char *msg;
+        if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, (const u_char *)"-> "))
+            return 0;
+
+        if (!sprint_realloc_objid(buf, buf_len, out_len, allow_realloc,
+                                  (oid *) (variable->val.objid),
+                                  variable->val_len / sizeof(oid)))
+            return 0;
+
+        switch (variable->type) {
+        case ASN_PRIV_INCL_RANGE:
+            msg = " ((Include))";
+            break;
+        case ASN_PRIV_EXCL_RANGE:
+            msg = " ((Exclude))";
+            break;
+        }
+        return snmp_strcat(buf, buf_len, out_len, allow_realloc, msg);
+    } else if (variable->type == ASN_PRIV_DELEGATED ||
+               variable->type == ASN_PRIV_RETRY) {
+        const u_char *msg;
+        switch (variable->type) {
+        case ASN_PRIV_DELEGATED:
+            msg = "((Delegated))";
+            break;
+        case ASN_PRIV_RETRY:
+            msg = "((Retry))";
+            break;
+        }
+        return snmp_strcat(buf, buf_len, out_len, allow_realloc, msg);
 #ifndef NETSNMP_DISABLE_MIB_LOADING
     } else if (subtree) {
         const char *units = NULL;
