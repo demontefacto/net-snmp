@@ -9,6 +9,12 @@ script: ./configure --with-defaults --with-python-modules --with-security-module
 # (I think we could use a matrix to install different
 # versions of perl and python for testing)
 # also need openssl for TLS support
-before_install:
- - sudo apt-get update -qq
- - sudo apt-get install -qq libperl-dev python2.7-dev libssl-dev
+addons:
+   apt:
+      packages:
+         - libperl-dev
+         - python2.7-dev
+         - libssl-dev
+#
+# Try the new docker infrastructure
+sudo: false
