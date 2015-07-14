@@ -9,12 +9,15 @@ script: ./configure --with-defaults --with-python-modules --with-security-module
 # (I think we could use a matrix to install different
 # versions of perl and python for testing)
 # also need openssl for TLS support
+# The docker instance doesn't have net-tools, which
+# the tests need.
 addons:
    apt:
       packages:
          - libperl-dev
          - python2.7-dev
          - libssl-dev
+         - net-tools
 #
 # Try the new docker infrastructure
 sudo: false
