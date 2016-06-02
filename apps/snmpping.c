@@ -42,15 +42,23 @@
 
 #include <ctype.h>
 
+#if HAVE_ARPA_INET_H
 #include <arpa/inet.h>
+#endif
 
 #include <sys/types.h>
+#if HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
+#endif
+#if HAVE_NETDB_H
 #include <netdb.h>
+#endif
 
 #include <math.h>
 
 #include <net-snmp/net-snmp-includes.h>
+
+#include "inet_ntop.h"
 
 /* XXX */
 #define INETADDRESSTYPE_IPV4    1
@@ -364,6 +372,7 @@ wait_for_completion(netsnmp_session *ss, oid * index, size_t indexlen)
     int             running = 1;
     int             status;
     int             pingStatus;
+    int             sent;
     int             responses, prev_responses = 0;
     int             tries = 0;
     netsnmp_pdu    *pdu;
@@ -373,6 +382,7 @@ wait_for_completion(netsnmp_session *ss, oid * index, size_t indexlen)
     while (running && !interrupted) {
         pdu = snmp_pdu_create(SNMP_MSG_GET);
         add(pdu, "DISMAN-PING-MIB::pingResultsOperStatus", index, indexlen);
+        add(pdu, "DISMAN-PING-MIB::pingResultsSentProbes", index, indexlen);
         add(pdu, "DISMAN-PING-MIB::pingResultsProbeResponses", index, indexlen);
 
         status = snmp_synch_response(ss, pdu, &response);
@@ -399,6 +409,13 @@ wait_for_completion(netsnmp_session *ss, oid * index, size_t indexlen)
 
         vlp = vlp->next_variable;
         if (vlp->type == SNMP_NOSUCHINSTANCE) {
+            DEBUGMSGTL(("ping", "no-such-instance for pingResultsSentProbes\n"));
+            goto retry;
+        }
+        sent = *vlp->val.integer;
+
+        vlp = vlp->next_variable;
+        if (vlp->type == SNMP_NOSUCHINSTANCE) {
             DEBUGMSGTL(("ping", "no-such-instance for pingResultsProbeResponses\n"));
             goto retry;
         }
@@ -419,13 +436,10 @@ wait_for_completion(netsnmp_session *ss, oid * index, size_t indexlen)
          * disabled, and then can turn to enabled, so we can't just stop
          * if it's disabled.  However, it doesn't always go to completed.
          * So, we say we're completed if it's completed, *or* if it's
-         * disabled and we've seen at least one response.
-         * (Note: this really needs to be pingResultsSentProbes, not
-         * responses, to handle the case where the other guy is not
-         * responding at all.)
+         * disabled and we've sent at least one probe.
          */
         if (pingStatus == PINGRESULTSOPERSTATUS_COMPLETED ||
-            (pingStatus == PINGRESULTSOPERSTATUS_DISABLED && responses > 0)) {
+            (pingStatus == PINGRESULTSOPERSTATUS_DISABLED && sent > 0)) {
             running = 0;
             goto out;
         }
@@ -542,6 +556,14 @@ out:
         snmp_free_pdu(response);
     return 0;
 }
+
+#ifdef WIN32
+/* To do: port this function to the Win32 platform. */
+const char *getlogin(void)
+{
+    return "";
+}
+#endif
 
 int main(int argc, char **argv)
 {
