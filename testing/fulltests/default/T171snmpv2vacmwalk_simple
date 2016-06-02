@@ -1,0 +1,44 @@
+#!/bin/sh
+
+. ../support/simple_eval_tools.sh
+
+HEADER SNMPv2 vacm getnext support
+
+SKIPIF NETSNMP_DISABLE_SNMPV2C
+
+#
+# Begin test
+#
+
+#
+# testcommunity1 can only access sysDescr.
+# We walk the system group, and see what handlers get called.
+#
+
+snmp_version=v2c
+. ./Svacmconfig
+
+# In order to simplify the test, we only include the system MIB
+# (including sysORTable), and vacm_conf to get vacm.
+# We include debugging to specifically check what handlers
+# get called.
+AGENT_FLAGS="$ORIG_AGENT_FLAGS -Isystem_mib,sysORTable,vacm_conf -Dhandler:calling,snmp_agent,9:vacm:checkSubtree,vacm:checkSubtree"
+
+STARTAGENT
+
+CAPTURE "snmpwalk -On $SNMP_FLAGS -c testcommunity1 -v 2c $SNMP_TRANSPORT_SPEC:$SNMP_TEST_DEST$SNMP_SNMPD_PORT .1.3.6.1.2.1"
+CHECKORDIE ".1.3.6.1.2.1.1.1.0 = STRING: "
+CHECKORDIE ".1.3.6.1.2.1.1.1.0 = No more variables left in this MIB View"
+# Only two lines with OIDs - no other return from the walk
+CHECKCOUNT 2 "^\."
+
+# look at the log file for what handlers got called
+# 1. handler:calling: main handler null -- the initial step from iso to system
+# 2. handler:calling: main handler bulk_to_next -- to get sysDescr.0
+# 3. handler:calling: main handler bulk_to_next -- to make sure there is no sysDescr.1
+CHECKFILECOUNT $SNMP_SNMPD_LOG_FILE 3 "handler:calling: main handler"
+
+STOPAGENT
+
+FINISHED
+
