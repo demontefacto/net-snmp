@@ -2012,12 +2012,21 @@ netsnmp_add_varbind_to_cache(netsnmp_agent_session *asp, int vbcount,
         int result;
         int prefix_len;
 
+        DEBUGMSGTL(("snmp_agent", "tree %s start ", (tp->label_a ? tp->label_a : "(???)")));
+        DEBUGMSGOID(("snmp_agent", tp->start_a, tp->start_len));
+        DEBUGMSG(("snmp_agent", " end "));
+        DEBUGMSGOID(("snmp_agent", tp->end_a, tp->end_len));
+        DEBUGMSG(("snmp_agent", "\n"));
+
         prefix_len = netsnmp_oid_find_prefix(tp->start_a,
                                              tp->start_len,
                                              tp->end_a, tp->end_len);
         if (prefix_len < 1) {
             result = VACM_NOTINVIEW; /* ack...  bad bad thing happened */
         } else {
+            DEBUGMSGTL(("snmp_agent", "checking subtree "));
+            DEBUGMSGOID(("snmp_agent", tp->start_a, prefix_len));
+            DEBUGMSG(("snmp_agent", "\n"));
             result =
                 netsnmp_acm_check_subtree(asp->pdu, tp->start_a, prefix_len);
         }
@@ -2033,6 +2042,11 @@ netsnmp_add_varbind_to_cache(netsnmp_agent_session *asp, int vbcount,
                 come up all that frequently. */
             tp = tp->next;
             if (tp) {
+                DEBUGMSGTL(("snmp_agent", "tree %s start ", (tp->label_a ? tp->label_a : "(???)")));
+                DEBUGMSGOID(("snmp_agent", tp->start_a, tp->start_len));
+                DEBUGMSG(("snmp_agent", " end "));
+                DEBUGMSGOID(("snmp_agent", tp->end_a, tp->end_len));
+                DEBUGMSG(("snmp_agent", "\n"));
                 prefix_len = netsnmp_oid_find_prefix(tp->start_a,
                                                      tp->start_len,
                                                      tp->end_a,
@@ -2041,6 +2055,9 @@ netsnmp_add_varbind_to_cache(netsnmp_agent_session *asp, int vbcount,
                     /* ack...  bad bad thing happened */
                     result = VACM_NOTINVIEW;
                 } else {
+                    DEBUGMSGTL(("snmp_agent", "checking subtree "));
+                    DEBUGMSGOID(("snmp_agent", tp->start_a, prefix_len));
+                    DEBUGMSG(("snmp_agent", "\n"));
                     result =
                         netsnmp_acm_check_subtree(asp->pdu,
                                                   tp->start_a, prefix_len);

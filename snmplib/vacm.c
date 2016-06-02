@@ -523,7 +523,9 @@ netsnmp_view_subtree_check(struct vacm_viewEntry *head, const char *viewName,
         return VACM_NOTINVIEW;
     view[0] = glen;
     strcpy(view + 1, viewName);
-    DEBUGMSGTL(("9:vacm:checkSubtree", "view %s\n", viewName));
+    DEBUGMSGTL(("9:vacm:checkSubtree", "checking "));
+    DEBUGMSGOID(("9:vacm:checkSubtree", viewSubtree, viewSubtreeLen));
+    DEBUGMSG(("9:vacm:checkSubtree", " against view %s\n", viewName));
     for (vp = head; vp; vp = vp->next) {
         if (!memcmp(view, vp->viewName, glen + 1)) {
             /*
@@ -560,7 +562,9 @@ netsnmp_view_subtree_check(struct vacm_viewEntry *head, const char *viewName,
                      * the previous or (equal and lexicographically greater
                      * than the previous). 
                      */
-                    DEBUGMSGTL(("9:vacm:checkSubtree", " %s matched?\n", vp->viewName));
+                    DEBUGMSGTL(("9:vacm:checkSubtree", " matched? (shorter: "));
+                    DEBUGMSGOID(("9:vacm:checkSubtree", vp->viewSubtree + 1, vp->viewSubtreeLen - 1));
+                    DEBUGMSG(("9:vacm:checkSubtree", ")\n"));
     
                     if (vpShorter == NULL
                         || vp->viewSubtreeLen > vpShorter->viewSubtreeLen
@@ -608,10 +612,18 @@ netsnmp_view_subtree_check(struct vacm_viewEntry *head, const char *viewName,
                      * with a different view type, then parts of the subtree 
                      * are included and others are excluded, so return UNKNOWN.
                      */
-                    DEBUGMSGTL(("9:vacm:checkSubtree", " %s matched?\n", vp->viewName));
+                    DEBUGMSGTL(("9:vacm:checkSubtree", " matched? (longer: "));
+                    DEBUGMSGOID(("9:vacm:checkSubtree", vp->viewSubtree + 1, vp->viewSubtreeLen - 1));
+                    DEBUGMSG(("9:vacm:checkSubtree", ")\n"));
                     if (vpLonger != NULL
                         && (vpLonger->viewType != vp->viewType)) {
-                        DEBUGMSGTL(("vacm:checkSubtree", ", %s\n", "unknown"));
+                        DEBUGIF("vacm:checkSubtree") {
+                            DEBUGMSGTL(("vacm:checkSubtree", ", %s (", "unknown"));
+                            DEBUGMSGOID(("vacm:checkSubtree", vpLonger->viewSubtree + 1, vpLonger->viewSubtreeLen - 1));
+                            DEBUGMSG(("vacm:checksubtree", " type %d makes " , vpLonger->viewType));
+                            DEBUGMSGOID(("vacm:checkSubtree", vp->viewSubtree + 1, vp->viewSubtreeLen - 1));
+                            DEBUGMSG(("vacm:checksubtree", " type %d ambiguous)\n" , vp->viewType));
+                        }
                         return VACM_SUBTREE_UNKNOWN;
                     }
                     else if (vpLonger == NULL) {
@@ -638,7 +650,18 @@ netsnmp_view_subtree_check(struct vacm_viewEntry *head, const char *viewName,
     if (vpLonger != NULL) {
         if ((!vpShorter && vpLonger->viewType != SNMP_VIEW_EXCLUDED)
             || (vpShorter && vpLonger->viewType != vpShorter->viewType)) {
-            DEBUGMSGTL(("vacm:checkSubtree", ", %s\n", "unknown"));
+            DEBUGIF("vacm:checkSubtree") {
+                DEBUGMSGTL(("vacm:checkSubtree", ", %s (", "unknown"));
+                DEBUGMSGOID(("vacm:checkSubtree", vpLonger->viewSubtree + 1, vpLonger->viewSubtreeLen - 1));
+                DEBUGMSG(("vacm:checkSubtree", " type %d makes ", vpLonger->viewType));
+                if (vpShorter) {
+                    DEBUGMSGOID(("vacm:checkSubtree", vpShorter->viewSubtree + 1, vpShorter->viewSubtreeLen - 1));
+                    DEBUGMSG(("vacm:checkSubtree", " type %d ", vpShorter->viewType));
+                } else {
+                    DEBUGMSG(("vacm:checkSubtree", "match "));
+                }
+                DEBUGMSG(("vacm:checkSubtree", "ambiguous)\n"));
+            }
             return VACM_SUBTREE_UNKNOWN;
         }
     }
