@@ -1994,6 +1994,31 @@ handle_snmp_packet(int op, netsnmp_session * session, int reqid,
     return rc;
 }
 
+/*
+ * A subtree has a start->end range.  The end is alwas non-inclusive.
+ * If the subtree is for X.1 to X.2, then that means "everything under
+ * X.1".  In any other case, we go up to the common prefix - e.g.,
+ * if start=X.1 and end=X.5, we just find the prefix of X and test
+ * against the whole thing.
+ */
+static int
+netsnmp_prefix_for_subtree(netsnmp_subtree *tp) {
+    int prefix_len;
+
+    if (netsnmp_oid_equals(tp->start_a, tp->start_len-1, tp->end_a, tp->end_len-1) == 0 &&
+            tp->start_a[tp->start_len-1] + 1 == tp->end_a[tp->end_len - 1]) {
+        DEBUGMSGTL(("snmp-agent", "netsnmp_prefix_for_subtree optimization kicked in\n"));
+        prefix_len = tp->start_len;
+    } else {
+        DEBUGMSGTL(("snmp-agent", "netsnmp_prefix_for_subtree optimization failed\n"));
+        DEBUGMSGTL(("snmp-agent", "oid_equals %d start oid %d end oid %d\n", netsnmp_oid_equals(tp->start_a, tp->start_len-1, tp->end_a, tp->end_len-1), tp->start_a[tp->start_len-1], tp->end_a[tp->end_len - 1]));
+        prefix_len = netsnmp_oid_find_prefix(tp->start_a,
+                                             tp->start_len,
+                                             tp->end_a, tp->end_len);
+    }
+    return prefix_len;
+}
+
 netsnmp_request_info *
 netsnmp_add_varbind_to_cache(netsnmp_agent_session *asp, int vbcount,
                              netsnmp_variable_list * varbind_ptr,
@@ -2018,9 +2043,7 @@ netsnmp_add_varbind_to_cache(netsnmp_agent_session *asp, int vbcount,
         DEBUGMSGOID(("snmp_agent", tp->end_a, tp->end_len));
         DEBUGMSG(("snmp_agent", "\n"));
 
-        prefix_len = netsnmp_oid_find_prefix(tp->start_a,
-                                             tp->start_len,
-                                             tp->end_a, tp->end_len);
+        prefix_len = netsnmp_prefix_for_subtree(tp);
         if (prefix_len < 1) {
             result = VACM_NOTINVIEW; /* ack...  bad bad thing happened */
         } else {
@@ -2047,10 +2070,7 @@ netsnmp_add_varbind_to_cache(netsnmp_agent_session *asp, int vbcount,
                 DEBUGMSG(("snmp_agent", " end "));
                 DEBUGMSGOID(("snmp_agent", tp->end_a, tp->end_len));
                 DEBUGMSG(("snmp_agent", "\n"));
-                prefix_len = netsnmp_oid_find_prefix(tp->start_a,
-                                                     tp->start_len,
-                                                     tp->end_a,
-                                                     tp->end_len);
+                prefix_len = netsnmp_prefix_for_subtree(tp);
                 if (prefix_len < 1) {
                     /* ack...  bad bad thing happened */
                     result = VACM_NOTINVIEW;
