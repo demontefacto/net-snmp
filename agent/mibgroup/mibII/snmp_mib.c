@@ -1,3 +1,14 @@
+/*
+ * Portions of this file are subject to the following copyright(s).  See
+ * the Net-SNMP's COPYING file for more details and other copyrights
+ * that may apply:
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
+ */
+
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
 #include <net-snmp/net-snmp-includes.h>
@@ -112,13 +123,23 @@ init_snmp_mib(void)
     {
         const oid snmpEnableAuthenTraps_oid[] = { 1, 3, 6, 1, 2, 1, 11, 30, 0 };
 	static netsnmp_watcher_info enableauthen_info;
+        netsnmp_mib_handler *handler;
         netsnmp_handler_registration *reg =
             netsnmp_create_update_handler_registration(
                 "mibII/snmpEnableAuthenTraps",
                 snmpEnableAuthenTraps_oid,
                 OID_LENGTH(snmpEnableAuthenTraps_oid),
                 HANDLER_CAN_RWRITE, &snmp_enableauthentrapsset);
-        netsnmp_inject_handler(reg, netsnmp_get_truthvalue());
+        handler = netsnmp_get_truthvalue();
+        if (!handler ||
+            (netsnmp_inject_handler(reg, handler) != SNMPERR_SUCCESS)) {
+            snmp_log(LOG_ERR,
+                     "could not create mibII/snmpEnableAuthenTraps handler\n");
+            if (handler)
+                netsnmp_handler_free(handler);
+            netsnmp_handler_registration_free(reg);
+            return;
+        }
         netsnmp_register_watched_instance(
             reg,
             netsnmp_init_watcher_info(
