@@ -3306,6 +3306,10 @@ CONFIGURE_OPTIONS="\"$ac_configure_args\""
 #     checks for library functions
 #     checks for system services
 
+
+
+
+
 # -*- autoconf -*-
 #########################################
 ##
@@ -5241,7 +5245,8 @@ fi
 #   (e.g. it causes type mismatches in the AC_CV_FUNCS call)
 ##
 noerr_CFLAGS="$CFLAGS"
-CFLAGS=`echo $CFLAGS | sed 's/-Werror//'`
+CFLAGS=`echo $CFLAGS | sed 's/-Werror[^ ]*//g'`
+CFLAGS_without_Werror=$CFLAGS
 export CFLAGS
 # -*- autoconf -*-
 #
@@ -30207,7 +30212,7 @@ rm -f confcache
 ##
 # Add back in the original CFLAGS setting
 ##
-CFLAGS="$noerr_CFLAGS"
+CFLAGS="$noerr_CFLAGS ${CFLAGS#$CFLAGS_without_Werror}"
 export CFLAGS
 
 #
