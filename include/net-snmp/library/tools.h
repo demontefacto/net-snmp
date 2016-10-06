@@ -3,6 +3,11 @@
  * @defgroup util Memory Utility Routines
  * @ingroup library
  * @{
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 
 #ifndef _TOOLS_H
@@ -208,6 +213,8 @@ extern          "C" {
     u_char         *malloc_zero(size_t size);
     NETSNMP_IMPORT
     void           *netsnmp_memdup(const void * from, size_t size);
+    NETSNMP_IMPORT
+    void *netsnmp_memdup_nt(const void *from, size_t from_len, size_t *to_len);
 
     void            netsnmp_check_definedness(const void *packet,
                                               size_t length);

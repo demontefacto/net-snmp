@@ -46,13 +46,15 @@ AC_SUBST(CONFIGURE_OPTIONS)
 #     checks for library functions
 #     checks for system services
 
+m4_include([configure.d/config_net_snmp_config_h])
 m4_include([configure.d/config_project_with_enable])
 ##
 # Protect against CFLAGS with -Werror which causes failures for some tests
 #   (e.g. it causes type mismatches in the AC_CV_FUNCS call)
 ##
 noerr_CFLAGS="$CFLAGS"
-CFLAGS=`echo $CFLAGS | sed 's/-Werror//'`
+CFLAGS=`echo $CFLAGS | sed 's/-Werror[[^ ]]*//g'`
+CFLAGS_without_Werror=$CFLAGS
 export CFLAGS
 m4_include([configure.d/config_project_manual])
 m4_include([configure.d/config_os_progs])
@@ -79,7 +81,7 @@ AC_CACHE_SAVE
 ##
 # Add back in the original CFLAGS setting
 ##
-CFLAGS="$noerr_CFLAGS"
+CFLAGS="$noerr_CFLAGS ${CFLAGS#$CFLAGS_without_Werror}"
 export CFLAGS
 
 #

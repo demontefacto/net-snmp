@@ -1204,6 +1204,7 @@ netsnmp_register_agent_nsap(netsnmp_transport *t)
         n->next = a;
         *prevNext = n;
         SNMP_FREE(s);
+        DEBUGMSGTL(("netsnmp_register_agent_nsap", "handle %d\n", n->handle));
         return n->handle;
     } else {
         SNMP_FREE(s);
@@ -1261,7 +1262,34 @@ netsnmp_deregister_agent_nsap(int handle)
     }
 }
 
+int
+netsnmp_agent_listen_on(const char *port)
+{
+    netsnmp_transport *transport;
+    int                handle;
 
+    if (NULL == port)
+        return -1;
+
+    transport = netsnmp_transport_open_server("snmp", port);
+    if (transport == NULL) {
+        snmp_log(LOG_ERR, "Error opening specified endpoint \"%s\"\n", port);
+        return -1;
+    }
+
+    handle = netsnmp_register_agent_nsap(transport);
+    if (handle < 0) {
+        snmp_log(LOG_ERR, "Error registering specified transport \"%s\" as an "
+                 "agent NSAP\n", port);
+        return -1;
+    } else {
+        DEBUGMSGTL(("snmp_agent",
+                    "init_master_agent; \"%s\" registered as an agent NSAP\n",
+                    port));
+    }
+
+    return handle;
+}
 
 /*
  * 
@@ -1289,7 +1317,6 @@ netsnmp_deregister_agent_nsap(int handle)
 int
 init_master_agent(void)
 {
-    netsnmp_transport *transport;
     char           *cptr;
     char           *buf = NULL;
     char           *st;
@@ -1357,24 +1384,8 @@ init_master_agent(void)
 			"requested\n"));
             break;
         }
-        transport = netsnmp_transport_open_server("snmp", cptr);
-
-        if (transport == NULL) {
-            snmp_log(LOG_ERR, "Error opening specified endpoint \"%s\"\n",
-                     cptr);
+        if (-1 == netsnmp_agent_listen_on(cptr))
             return 1;
-        }
-
-        if (netsnmp_register_agent_nsap(transport) == 0) {
-            snmp_log(LOG_ERR,
-                     "Error registering specified transport \"%s\" as an "
-		     "agent NSAP\n", cptr);
-            return 1;
-        } else {
-            DEBUGMSGTL(("snmp_agent",
-                        "init_master_agent; \"%s\" registered as an agent "
-			"NSAP\n", cptr));
-        }
     } while(st && *st != '\0');
     SNMP_FREE(buf);
 #endif /* NETSNMP_NO_LISTEN_SUPPORT */
@@ -1758,6 +1769,37 @@ netsnmp_wrap_up_request(netsnmp_agent_session *asp, int status)
             }
         }
 #endif /* snmpv1 support */
+
+        /** so far so good? try and build packet */
+        if (status == SNMP_ERR_NOERROR) {
+            int _build_initial_pdu_packet(struct session_list *slp,
+                                          netsnmp_pdu *pdu, int bulk);
+
+            struct session_list *slp = snmp_sess_pointer(asp->session);
+
+            /** build packet to send */
+            asp->pdu->command = SNMP_MSG_RESPONSE;
+            asp->pdu->errstat = asp->status;
+            asp->pdu->errindex = asp->index;
+            status = _build_initial_pdu_packet(slp, asp->pdu,
+                                               SNMP_MSG_GETBULK == asp->orig_pdu->command);
+            if (SNMPERR_SUCCESS != status){
+                if (SNMPERR_TOO_LONG == asp->session->s_snmp_errno)
+                    status = asp->status = SNMP_ERR_TOOBIG;
+                else
+                    status = asp->status = SNMP_ERR_GENERR;
+            }
+        }
+
+        if (status == SNMP_ERR_NOERROR)
+            snmp_increment_statistic_by(
+#ifndef NETSNMP_NO_WRITE_SUPPORT
+                (asp->pdu->command == SNMP_MSG_SET ?
+                 STAT_SNMPINTOTALSETVARS : STAT_SNMPINTOTALREQVARS),
+#else
+                SNMPINTOTALREQVARS,
+#endif
+                count_varbinds(asp->pdu->variables));
     } /** if asp->pdu */
 
     /*
@@ -1801,22 +1843,8 @@ netsnmp_wrap_up_request(netsnmp_agent_session *asp, int status)
         break;
     }
 
-    if ((status == SNMP_ERR_NOERROR) && (asp->pdu)) {
-#ifndef NETSNMP_NO_WRITE_SUPPORT
-        snmp_increment_statistic_by((asp->pdu->command == SNMP_MSG_SET ?
-                                     STAT_SNMPINTOTALSETVARS :
-                                     STAT_SNMPINTOTALREQVARS),
-                                    count_varbinds(asp->pdu->variables));
-#else /* NETSNMP_NO_WRITE_SUPPORT */
-        snmp_increment_statistic_by(STAT_SNMPINTOTALREQVARS,
-                                    count_varbinds(asp->pdu->variables));
-#endif /* NETSNMP_NO_WRITE_SUPPORT */
-
-    } else {
-        /*
-         * Use a copy of the original request
-         *   to report failures.
-         */
+    if ((status != SNMP_ERR_NOERROR) || (NULL == asp->pdu)) {
+        /** Use a copy of the original request to report failures. */
         snmp_free_pdu(asp->pdu);
         asp->pdu = asp->orig_pdu;
         asp->orig_pdu = NULL;
@@ -1836,7 +1864,7 @@ netsnmp_wrap_up_request(netsnmp_agent_session *asp, int status)
 
                 if (c_oid) {
                     if (!sprint_realloc_objid (&c_oid, &c_oidlen, &c_outlen, 1,
- 		                               var_ptr->name,
+                                               var_ptr->name,
                                                var_ptr->name_length)) {
                         snmp_log(LOG_ERR, "    -- %s [TRUNCATED]\n", c_oid);
                     } else {
@@ -1846,11 +1874,10 @@ netsnmp_wrap_up_request(netsnmp_agent_session *asp, int status)
                 }
             }
             snmp_free_pdu(asp->pdu);
-            asp->pdu = NULL;
         }
         snmp_increment_statistic(STAT_SNMPOUTPKTS);
         snmp_increment_statistic(STAT_SNMPOUTGETRESPONSES);
-        asp->pdu = NULL; /* yyy-rks: redundant, no? */
+        asp->pdu = NULL;
         netsnmp_remove_and_free_agent_snmp_session(asp);
     }
     return 1;
@@ -2364,6 +2391,9 @@ netsnmp_create_subtree_cache(netsnmp_agent_session *asp)
             int maxresponses =
                 netsnmp_ds_get_int(NETSNMP_DS_APPLICATION_ID,
                                    NETSNMP_DS_AGENT_MAX_GETBULKRESPONSES);
+            int avgvarbind =
+                netsnmp_ds_get_int(NETSNMP_DS_APPLICATION_ID,
+                                   NETSNMP_DS_AGENT_AVG_BULKVARBINDSIZE);
 
             if (maxresponses == 0)
                 maxresponses = 100;   /* more than reasonable default */
@@ -2374,8 +2404,27 @@ netsnmp_create_subtree_cache(netsnmp_agent_session *asp)
             if (maxresponses < 0 ||
                 maxresponses > (int)(INT_MAX / sizeof(struct varbind_list *)))
                 maxresponses = (int)(INT_MAX / sizeof(struct varbind_list *));
+            DEBUGMSGTL(("snmp_agent:bulk", "maxresponse %d\n", maxresponses));
 
-            /* ensure that the maximum number of repetitions will fit in the
+            /* reduce maxresponses by dividing the sessions max size by a
+             * (very) rough aproximation of the size of an average
+             * varbind. 15 seems to be a reasonable balance between getting
+             * enough varbinds to fill the packet vs retrieving varbinds
+             * that will be discarded to make the response fit the packet size.
+             */
+            if (avgvarbind == 0)
+                avgvarbind = 15;
+
+            if (asp->session->sndMsgMaxSize &&
+                (maxresponses > (asp->session->sndMsgMaxSize / avgvarbind))) {
+                maxresponses = asp->session->sndMsgMaxSize / avgvarbind;
+                DEBUGMSGTL(("snmp_agent:bulk",
+                            "lowering maxresponse to %d based on session sndMsgMaxSize %ld and avgBulkVarbindSize %d\n",
+                            maxresponses, asp->session->sndMsgMaxSize,
+                            avgvarbind));
+            }
+
+             /* ensure that the maximum number of repetitions will fit in the
              * result vector
              */
             if (maxbulk <= 0 || maxbulk > maxresponses / r)
@@ -2384,8 +2433,8 @@ netsnmp_create_subtree_cache(netsnmp_agent_session *asp)
             /* limit getbulk number of repeats to a configured size */
             if (asp->pdu->errindex > maxbulk) {
                 asp->pdu->errindex = maxbulk;
-                DEBUGMSGTL(("snmp_agent",
-                            "truncating number of getbulk repeats to %ld\n",
+                DEBUGMSGTL(("snmp_agent:bulk",
+                            "lowering requested getbulk repeats to %ld\n",
                             asp->pdu->errindex));
             }
 
@@ -2394,11 +2443,11 @@ netsnmp_create_subtree_cache(netsnmp_agent_session *asp)
                     (n + asp->pdu->errindex * r) * sizeof(struct varbind_list *));
 
             if (!asp->bulkcache) {
-                DEBUGMSGTL(("snmp_agent", "Bulkcache malloc failed\n"));
+                DEBUGMSGTL(("snmp_agent:bulk", "Bulkcache malloc failed\n"));
                 return SNMP_ERR_GENERR;
             }
         }
-        DEBUGMSGTL(("snmp_agent", "GETBULK N = %d, M = %ld, R = %d\n",
+        DEBUGMSGTL(("snmp_agent:bulk", "GETBULK N = %d, M = %ld, R = %d\n",
                     n, asp->pdu->errindex, r));
     }
 
@@ -3125,8 +3174,10 @@ check_getnext_results(netsnmp_agent_session *asp)
 int
 handle_getnext_loop(netsnmp_agent_session *asp)
 {
-    int             status;
-    netsnmp_variable_list *var_ptr;
+    int             status, rough_size, count, total, val_len;
+    netsnmp_variable_list *var_ptr, *last_var;
+
+    total = count_varbinds(asp->pdu->variables);
 
     /*
      * loop 
@@ -3154,28 +3205,57 @@ handle_getnext_loop(netsnmp_agent_session *asp)
              */
             break;
 
-        /*
-         * never had a request (empty pdu), quit now 
-         */
-        /*
-         * XXXWWW: huh?  this would be too late, no?  shouldn't we
-         * catch this earlier? 
-         */
-        /*
-         * if (count == 0)
-         * break; 
-         */
-
-        DEBUGIF("results") {
-            DEBUGMSGTL(("results",
-                        "getnext results, before next pass:\n"));
-            for (var_ptr = asp->pdu->variables; var_ptr;
-                 var_ptr = var_ptr->next_variable) {
-                DEBUGMSGTL(("results", "\t"));
-                DEBUGMSGVAR(("results", var_ptr));
-                DEBUGMSG(("results", "\n"));
+        count = rough_size = 0;
+        DEBUGMSGTL(("results:intermediate",
+                    "getnext results, before next pass:\n"));
+        for (var_ptr = asp->pdu->variables; var_ptr; 
+             var_ptr = var_ptr->next_variable) {
+            if ((var_ptr->type == ASN_NULL && 0 == var_ptr->name_length) ||
+                (var_ptr->type == ASN_PRIV_RETRY)) {
+                continue;
             }
+            ++count;
+            DEBUGIF("results:intermediate") {
+                DEBUGMSGTL(("results:intermediate", "\t"));
+                DEBUGMSGVAR(("results:intermediate", var_ptr));
+                DEBUGMSG(("results:intermediate", "\n"));
+            }
+            /*
+             * make a very rough guesstimate of the encoded varbind size by
+             * adding the name and val lengths. If these rough sizes add up
+             * to more than the sndMsgMaxSize, stop gathing new varbinds.
+             *
+             * [Increasing the accuracy of this estimate would allow us to
+             * do better at filling packets and collecting fewer varbinds that
+             * we'll later have to trim. This is left as an exercise for the
+             * reader.]
+             */
+            rough_size += var_ptr->name_length;
+#if (SIZEOF_LONG == 8)
+            /** sizeof(oid) is 8 on 64bit systems :-( Hardcode for 4 */
+            if (ASN_OBJECT_ID == var_ptr->type)
+                val_len = (var_ptr->val_len / 2);
+            else
+#endif
+                val_len = var_ptr->val_len;
+
+            DEBUGMSGTL(("results:intermediate", "\t+ %ld %d = %d\n",
+                        var_ptr->name_length,  val_len, rough_size));
+            if (asp->session->sndMsgMaxSize &&
+                rough_size > asp->session->sndMsgMaxSize) {
+                DEBUGMSGTL(("results",
+                            "estimating packet too big; stop gathering\n"));
+                asp->pdu->flags |= UCD_MSG_FLAG_BULK_TOOBIG |
+                    UCD_MSG_FLAG_FORWARD_ENCODE;
+                var_ptr->type = ASN_PRIV_STOP;
+                last_var->next_variable = NULL;
+                break;
+            }
+            last_var = var_ptr;
         }
+        if (asp->session->sndMsgMaxSize &&
+            rough_size > asp->session->sndMsgMaxSize)
+            break;
 
         netsnmp_reassign_requests(asp);
         status = handle_var_requests(asp);
@@ -3183,6 +3263,8 @@ handle_getnext_loop(netsnmp_agent_session *asp)
             return status;      /* should never really happen */
         }
     }
+    DEBUGMSGTL(("results:summary", "gathered %d/%d varbinds\n", count,
+                total));
     if (!netsnmp_running) {
         return SNMP_ERR_GENERR;
     }

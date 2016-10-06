@@ -7,6 +7,11 @@
  * Copyright © 2003 Sun Microsystems, Inc. All rights reserved.
  * Use is subject to license terms specified in the COPYING file
  * distributed with the Net-SNMP package.
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 #ifndef SNMP_API_H
 #define SNMP_API_H
@@ -119,6 +124,7 @@ typedef struct request_list {
 
     NETSNMP_IMPORT void     snmp_set_detail(const char *);
 
+#define SNMP_MAX_RCV_MSG_SIZE      65536
 #define SNMP_MAX_MSG_SIZE          1472 /* ethernet MTU minus IP/UDP header */
 #define SNMP_MAX_MSG_V3_HDRS       (4+3+4+7+7+3+7+16)   /* fudge factor=16 */
 #define SNMP_MAX_ENG_SIZE          32
@@ -167,6 +173,7 @@ typedef struct request_list {
 #define SNMP_FLAGS_STREAM_SOCKET   0x80
 #define SNMP_FLAGS_LISTENING       0x40 /* Server stream sockets only */
 #define SNMP_FLAGS_SUBSESSION      0x20
+#define SNMP_FLAGS_SHARED_SOCKET   0x10 /* subsession list=related sessions */
 #define SNMP_FLAGS_STRIKE2         0x02
 #define SNMP_FLAGS_STRIKE1         0x01
 

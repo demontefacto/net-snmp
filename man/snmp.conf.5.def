@@ -108,6 +108,8 @@ turns on debugging for all applications run if set to 1.
 defines the debugging tokens that should be turned on when
 \fIdoDebugging\fR is set.
 This is equivalent to the \fB\-D\fR option.
+.IP "debugLogLevel (emerg|alert|crit|err|warning|notice|info|debug)"
+Set the priority level for logging of debug output. Defaults to isbug.
 .\".IP "16bitIDs (1|yes|true|0|no|false)"
 .IP "16bitIDs yes"
 restricts requestIDs, etc to 16-bit values.
@@ -181,7 +183,15 @@ Specifies the timeout in seconds between retries.
 .\"
 .\" XXX - It is probably about time to remove this choice!
 .\"
+.SH SNMPv1/SNMPv2c SETTINGS
+.IP "disableSNMPv1  (1|yes|true|0|no|false)"
+.IP "disableSNMPv2c (1|yes|true|0|no|false)"
+Disables protocol versions at runtime. Incoming and outgoing packets for
+the protocol will be dropped.
 .SH SNMPv3 SETTINGS
+.IP "disableSNMPv3  (1|yes|true|0|no|false)"
+Disables protocol versions at runtime. Incoming and outgoing packets for
+the protocol will be dropped.
 .IP "defSecurityName STRING"
 defines the default security name to use for SNMPv3 requests.
 This can be overridden using the \fB\-u\fR option.
@@ -307,6 +317,17 @@ This directive will be ignored if the platforms does not support
 .IP "serverSendBuf INTEGER"
 is similar to \fIserverRecvBuf\fR, but applies to the size
 of the buffer used when sending SNMP responses.
+.IP
+.IP "sourceFilterType none|whitelist|blacklist"
+specifies whether or not addresses added with \fIsourceFilterAddress\fR are
+whitelisted or blacklisted. The default is none, indicating that incoming
+packets will not be checked agains the filter list.
+.IP
+.IP "sourceFilterAddress ADDRESS"
+specifies an address to be added to the source address filter list.
+\fIsourceFilterType\fR configuration determines whether or not addresses are
+whitelisted or blacklisted.
+.IP
 .SH MIB HANDLING
 .IP "mibdirs DIRLIST"
 specifies a list of directories to search for MIB files.

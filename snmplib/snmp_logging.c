@@ -118,6 +118,17 @@ static int  logh_enabled = 0;
 static char syslogname[64] = DEFAULT_LOG_ID;
 #endif /* NETSNMP_FEATURE_REMOVE_LOGGING_SYSLOG */
 
+#ifndef NETSNMP_FEATURE_REMOVE_LOGGING_STDIO
+netsnmp_log_handler *
+netsnmp_register_stdio_loghandler(int stdout, int priority, int priority_max,
+                                  const char *tok);
+#endif
+#ifndef NETSNMP_FEATURE_REMOVE_LOGGING_FILE
+netsnmp_log_handler *
+netsnmp_register_filelog_handler(const char* logfilename, int priority,
+                                 int priority_max, int dont_zero_log);
+#endif
+
 void
 netsnmp_disable_this_loghandler(netsnmp_log_handler *logh)
 {
@@ -416,12 +427,7 @@ snmp_log_options(char *optarg, int argc, char *const *argv)
             optind++;
         /* Fallthrough */
     case 'e':
-        logh = netsnmp_register_loghandler(NETSNMP_LOGHANDLER_STDERR, priority);
-        if (logh) {
-            netsnmp_set_line_buffering(stderr);
-            logh->pri_max = pri_max;
-            logh->token   = strdup("stderr");
-	}
+        logh = netsnmp_register_stdio_loghandler(0, priority, pri_max, "stderr");
         break;
 
     /*
@@ -434,13 +440,7 @@ snmp_log_options(char *optarg, int argc, char *const *argv)
             optind++;
         /* Fallthrough */
     case 'o':
-        logh = netsnmp_register_loghandler(NETSNMP_LOGHANDLER_STDERR, priority);
-        if (logh) {
-            netsnmp_set_line_buffering(stdout);
-            logh->pri_max = pri_max;
-            logh->token   = strdup("stdout");
-            logh->imagic  = 1;	    /* stdout, not stderr */
-	}
+        logh = netsnmp_register_stdio_loghandler( 1, priority, pri_max, "stdout" );
         break;
 #endif /* NETSNMP_FEATURE_REMOVE_LOGGING_STDIO */
 
@@ -463,14 +463,8 @@ snmp_log_options(char *optarg, int argc, char *const *argv)
             return -1;
         }
         DEBUGMSGTL(("logging:options", "%d-%d: '%s'\n", priority, pri_max, optarg));
-        logh = netsnmp_register_loghandler(NETSNMP_LOGHANDLER_FILE, priority);
-        if (logh) {
-            logh->pri_max = pri_max;
-            logh->token   = strdup(optarg);
-            netsnmp_enable_filelog(logh,
-                                   netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID,
-                                                          NETSNMP_DS_LIB_APPEND_LOGFILES));
-	}
+        logh = netsnmp_register_filelog_handler(optarg, priority, pri_max,
+                                                   -1);
         break;
 #endif /* NETSNMP_FEATURE_REMOVE_LOGGING_FILE */
 
@@ -653,9 +647,7 @@ snmp_disable_filelog_entry(netsnmp_log_handler *logh)
     }
     netsnmp_disable_this_loghandler(logh);
 }
-#endif /* NETSNMP_FEATURE_REMOVE_LOGGING_FILE */
 
-#ifndef NETSNMP_FEATURE_REMOVE_LOGGING_FILE
 void
 snmp_disable_filelog(void)
 {
@@ -668,6 +660,28 @@ snmp_disable_filelog(void)
 #endif /* NETSNMP_FEATURE_REMOVE_LOGGING_FILE */
 
 #ifndef NETSNMP_FEATURE_REMOVE_LOGGING_STDIO
+
+netsnmp_log_handler *
+netsnmp_register_stdio_loghandler(int is_stdout, int priority, int priority_max,
+                                  const char *tok)
+{
+    netsnmp_log_handler *logh =
+        netsnmp_register_loghandler(NETSNMP_LOGHANDLER_STDERR, priority);
+    if (NULL == logh) {
+        return NULL;
+    }
+    if (is_stdout) {
+        netsnmp_set_line_buffering(stdout);
+        logh->imagic = 1; /* stdout, not stderr */
+    } else
+        netsnmp_set_line_buffering(stderr);
+
+    logh->pri_max = priority_max;
+    if (tok)
+        logh->token   = strdup(tok);
+    return logh;
+}
+
 /*
  * returns that status of stderr logging
  *
@@ -788,7 +802,7 @@ snmp_enable_syslog_ident(const char *ident, const int facility)
     void                *eventlog_h = NULL;
 #endif
 
-    snmp_disable_syslog();	/* ??? */
+    snmp_disable_syslog();     /* only one syslog at a time */
 #ifdef WIN32
     eventlog_h = OpenEventLog(NULL, ident);
     if (eventlog_h == NULL) {
@@ -852,6 +866,23 @@ netsnmp_enable_filelog(netsnmp_log_handler *logh, int dont_zero_log)
     netsnmp_enable_this_loghandler(logh);
 }
 
+netsnmp_log_handler *
+netsnmp_register_filelog_handler(const char* logfilename, int priority,
+                                 int priority_max, int dont_zero_log)
+{
+    netsnmp_log_handler *logh =
+        netsnmp_register_loghandler(NETSNMP_LOGHANDLER_FILE,
+                                    priority );
+    if (NULL == logh)
+        return NULL;
+    logh->token = strdup(logfilename);
+    if (-1 == dont_zero_log)
+        dont_zero_log = netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID,
+                                               NETSNMP_DS_LIB_APPEND_LOGFILES);
+    netsnmp_enable_filelog(logh, dont_zero_log);
+    return logh;
+}
+
 void
 snmp_enable_filelog(const char *logfilename, int dont_zero_log)
 {
@@ -867,13 +898,10 @@ snmp_enable_filelog(const char *logfilename, int dont_zero_log)
 
     if (logfilename) {
         logh = netsnmp_find_loghandler( logfilename );
-        if (!logh) {
-            logh = netsnmp_register_loghandler(NETSNMP_LOGHANDLER_FILE,
-                                               LOG_DEBUG );
-            if (logh)
-                logh->token = strdup(logfilename);
-	}
-        if (logh)
+        if (!logh)
+            logh = netsnmp_register_filelog_handler( logfilename, LOG_DEBUG,
+                                                     0, dont_zero_log );
+        else
             netsnmp_enable_filelog(logh, dont_zero_log);
     } else {
         for (logh = logh_head; logh; logh = logh->next)

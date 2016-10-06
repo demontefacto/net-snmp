@@ -1,5 +1,10 @@
 /*
  * snmpv3.h
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 
 #ifndef SNMPV3_H
@@ -22,6 +27,8 @@ extern          "C" {
 
     NETSNMP_IMPORT
     int             setup_engineID(u_char ** eidp, const char *text);
+    NETSNMP_IMPORT
+    int             set_exact_engineID(const u_char *id, size_t len);
     void            engineID_conf(const char *word, char *cptr);
     void            engineBoots_conf(const char *, char *);
     void            engineIDType_conf(const char *, char *);

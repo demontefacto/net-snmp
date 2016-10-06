@@ -1,5 +1,6 @@
 /* include/net-snmp/net-snmp-config.h.in.  Generated from configure.ac by autoheader.  */
-/* 
+
+/*
  * net-snmp configuration header file
  *
  * NOTE: DO NOT EDIT include/net-snmp/net-snmp-config.h.in as your changes
@@ -13,6 +14,11 @@
 /*
  * Portions of this file are copyrighted by:
  * Copyright © 2003 Sun Microsystems, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
  * Use is subject to license terms specified in the COPYING file
  * distributed with the Net-SNMP package.
  */
@@ -30,6 +36,10 @@
 
 /* definitions added by configure on-the-fly */
 
+#define config_error(x)
+
+#define config_warning(x)
+
 #define config_belongs_in(x)
 
 #define config_exclude(x)
@@ -43,10 +53,6 @@
 #define config_add_mib(x)
 
 #define config_parse_dot_conf(w,x,y,z)
-
-#define config_error(x)
-
-#define config_warning(x)
 
 /* Define if building universal (internal helper macro) */
 #undef AC_APPLE_UNIVERSAL_BUILD
@@ -161,7 +167,7 @@
 /* Define if you have EVP_sha224/256 in openssl */
 #undef HAVE_EVP_SHA224
 
-/* Define if you have EVP_sha384/256 in openssl */
+/* Define if you have EVP_sha384/512 in openssl */
 #undef HAVE_EVP_SHA384
 
 /* Define to 1 if you have the `execv' function. */
@@ -665,6 +671,9 @@
 /* Set if /etc/printcap exists */
 #undef HAVE_PRINTCAP
 
+/* Define if prioritynames variable is declared in <syslog.h> */
+#undef HAVE_PRIORITYNAMES
+
 /* Define to 1 if you have the <pthread.h> header file. */
 #undef HAVE_PTHREAD_H
 
@@ -1166,6 +1175,9 @@
 /* Define to 1 if you have the <sys/sysget.h> header file. */
 #undef HAVE_SYS_SYSGET_H
 
+/* Define to 1 if you have the <sys/syslog.h> header file. */
+#undef HAVE_SYS_SYSLOG_H
+
 /* Define to 1 if you have the <sys/sysmp.h> header file. */
 #undef HAVE_SYS_SYSMP_H
 
@@ -1399,6 +1411,9 @@
 
 /* testing code sections. */
 #undef NETSNMP_ENABLE_TESTING_CODE
+
+/* if defined always use default auth/priv protocol when creating usmUsers */
+#undef NETSNMP_FORCE_SYSTEM_V3_AUTHPRIV
 
 /* Should evaluate to the name of the current function if defined */
 #undef NETSNMP_FUNCTION
@@ -1804,6 +1819,9 @@
    out/err's place.  (stdin is closed so that sh scripts won't wait for it) */
 #undef NETSNMP_LOGFILE
 
+/* if defined daemons will use syslog when no log destination is defined */
+#undef NETSNMP_DAEMONS_DEFAULT_LOG_SYSLOG
+
 /* default system contact */
 #undef NETSNMP_SYS_CONTACT
 
@@ -2012,6 +2030,10 @@
 /*  This is defined if support for the UDP/IP transport domain is
     available.   */
 #undef NETSNMP_TRANSPORT_UDP_DOMAIN
+
+/*  This is defined if support for the shared UDP/IP transport domain is
+    available.   */
+#undef NETSNMP_TRANSPORT_UDPSHARED_DOMAIN
 
 /*  This is defined if support for the "callback" transport domain is
     available.   */

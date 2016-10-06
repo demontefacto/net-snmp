@@ -1,6 +1,12 @@
 #ifndef _SNMPUDPDOMAIN_H
 #define _SNMPUDPDOMAIN_H
 
+/*
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
+ */
 #ifdef __cplusplus
 extern          "C" {
 #endif
@@ -18,8 +24,39 @@ extern          "C" {
 config_require(UDPIPv4Base)
 #include <net-snmp/library/snmpUDPIPv4BaseDomain.h>
 
+NETSNMP_IMPORT
 netsnmp_transport *netsnmp_udp_transport(struct sockaddr_in *addr, int local);
 
+NETSNMP_IMPORT
+netsnmp_transport *netsnmp_udp_create_tspec(netsnmp_tdomain_spec *tspec);
+
+NETSNMP_IMPORT
+netsnmp_transport *
+netsnmp_udp_transport_with_source(struct sockaddr_in *addr, int local,
+                                  struct sockaddr_in *src_addr);
+
+#define C2SE_ERR_SUCCESS             0
+#define C2SE_ERR_MISSING_ARG        -1
+#define C2SE_ERR_COMMUNITY_TOO_LONG -2
+#define C2SE_ERR_SECNAME_TOO_LONG   -3
+#define C2SE_ERR_CONTEXT_TOO_LONG   -4
+#define C2SE_ERR_MASK_MISMATCH      -5
+#define C2SE_ERR_MEMORY             -6
+
+typedef struct com2SecEntry_s com2SecEntry;
+
+NETSNMP_IMPORT
+int         netsnmp_udp_com2SecEntry_create(com2SecEntry **entryp,
+                                            const char *community,
+                                            const char *secName,
+                                            const char *contextName,
+                                            struct in_addr *network,
+                                            struct in_addr *mask);
+NETSNMP_IMPORT
+void        netsnmp_udp_com2Sec_free(com2SecEntry *e);
+
+NETSNMP_IMPORT
+int         netsnmp_udp_com2SecList_remove(com2SecEntry *e);
 
 /*
  * Register any configuration tokens specific to the agent.  

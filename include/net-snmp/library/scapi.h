@@ -1,5 +1,10 @@
 /*
  * scapi.h
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 
 #ifndef _SCAPI_H
@@ -14,6 +19,10 @@ extern          "C" {
      */
 #define SNMP_TRANS_AUTHLEN_HMACMD5	128
 #define SNMP_TRANS_AUTHLEN_HMACSHA1	160
+#define SNMP_TRANS_AUTHLEN_HMAC192SHA256   256 /* MUST;     PENDING RFC ASSIGNMENT */
+#define SNMP_TRANS_AUTHLEN_HMAC384SHA512   512 /* SHOULD;   PENDING RFC ASSIGNMENT */
+#define SNMP_TRANS_AUTHLEN_HMAC128SHA224   224 /* OPTIONAL; PENDING RFC ASSIGNMENT */
+#define SNMP_TRANS_AUTHLEN_HMAC256SHA384   384 /* OPTIONAL; PENDING RFC ASSIGNMENT */
 
 #define SNMP_TRANS_AUTHLEN_HMAC96	96
 
@@ -30,10 +39,19 @@ extern          "C" {
     /*
      * Prototypes.
      */
+    int             sc_get_authtype(const oid * hashtype, u_int hashtype_len);
+    int             sc_get_proper_auth_length(int hashtype);
+    int             sc_get_auth_maclen(int auth_type);
+
+    /** deprectated, use sc_get_authtype() + sc_get_proper_auth_length() */
     int             sc_get_properlength(const oid * hashtype,
                                         u_int hashtype_len);
+
     int             sc_get_proper_priv_length(const oid * privtype,
                                               u_int privtype_len);
+#ifdef NETSNMP_USE_OPENSSL
+    const struct env_md_st *sc_get_openssl_hashfn(int auth_type);
+#endif
 
     NETSNMP_IMPORT
     int             sc_init(void);

@@ -2,6 +2,11 @@
  * snmpusm.h
  *
  * Header file for USM support.
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 
 #ifndef SNMPUSM_H
@@ -26,7 +31,11 @@ extern          "C" {
 
 #define USM_TIME_WINDOW			150
 #define USM_MD5_AND_SHA_AUTH_LEN        12      /* bytes */
-#define USM_MAX_AUTHSIZE                USM_MD5_AND_SHA_AUTH_LEN
+#define USM_HMAC192SHA256_AUTH_LEN      24      /* MUST;     PENDING RFC ASSIGNMENT */
+#define USM_HMAC384SHA512_AUTH_LEN      48      /* SHOULD;   PENDING RFC ASSIGNMENT */
+#define USM_HMAC128SHA224_AUTH_LEN      16      /* OPTIONAL; PENDING RFC ASSIGNMENT */
+#define USM_HMAC256SHA384_AUTH_LEN      32      /* OPTIONAL; PENDING RFC ASSIGNMENT */
+#define USM_MAX_AUTHSIZE                USM_HMAC384SHA512_AUTH_LEN
 
 #define USM_SEC_MODEL_NUMBER            SNMP_SEC_MODEL_USM
 
@@ -60,6 +69,7 @@ extern          "C" {
 
     struct usmUser;
     struct usmUser {
+        u_int          flags;
         u_char         *engineID;
         size_t          engineIDLen;
         char           *name;
@@ -70,8 +80,12 @@ extern          "C" {
         size_t          authProtocolLen;
         u_char         *authKey;
         size_t          authKeyLen;
+        u_char         *authKeyKu;
+        size_t          authKeyKuLen;
         oid            *privProtocol;
         size_t          privProtocolLen;
+        u_char         *privKeyKu;
+        size_t          privKeyKuLen;
         u_char         *privKey;
         size_t          privKeyLen;
         u_char         *userPublicString;
@@ -85,6 +99,7 @@ extern          "C" {
         struct usmUser *prev;
     };
 
+#define USMUSER_FLAG_KEEP_MASTER_KEY             0x01
 
 
     /*
@@ -261,6 +276,44 @@ extern          "C" {
     void            clear_user_list(void);
     NETSNMP_IMPORT
     void            shutdown_usm(void);
+
+    void            usm_init_auth_types(void);
+    int             usm_lookup_auth_type(const char *str);
+    char           *usm_lookup_auth_str(int value);
+    oid            *usm_get_auth_oid(int auth_type, size_t *oid_len);
+
+
+#define USM_CREATE_USER_AUTH_DFLT -1
+#define USM_CREATE_USER_AUTH_NONE NETSNMP_USMAUTH_NONE
+#define USM_CREATE_USER_AUTH_MD5  NETSNMP_USMAUTH_HMACMD5
+#define USM_CREATE_USER_AUTH_SHA1 NETSNMP_USMAUTH_HMACSHA1
+#define USM_CREATE_USER_AUTH_SHA  USM_CREATE_USER_AUTH_SHA1
+#define USM_CREATE_USER_AUTH_SHA512  NETSNMP_USMAUTH_HMAC384SHA512
+#define USM_CREATE_USER_AUTH_SHA384  NETSNMP_USMAUTH_HMAC256SHA384
+#define USM_CREATE_USER_AUTH_SHA256  NETSNMP_USMAUTH_HMAC192SHA256
+#define USM_CREATE_USER_AUTH_SHA224  NETSNMP_USMAUTH_HMAC128SHA224
+
+#define USM_CREATE_USER_PRIV_NONE 0
+#define USM_CREATE_USER_PRIV_DES  1
+#define USM_CREATE_USER_PRIV_AES  2
+
+    NETSNMP_IMPORT
+    struct usmUser *usm_create_usmUser(const char *userName,
+                                       const char *engineID, 
+                                       int authType, const char *authPass,
+                                       int privType, const char *privPass,
+                                       const char **errorMsg);
+
+    NETSNMP_IMPORT
+    int             usm_remove_usmUser(struct usmUser *user);
+
+    NETSNMP_IMPORT
+    int             usm_remove_usmUser_from_list(struct usmUser *user,
+                                                 struct usmUser **ppuserList);
+
+    NETSNMP_IMPORT
+    struct usmUser *usm_create_usmUser_from_string(char *line,
+                                                   const char **errorMsg);
 
     NETSNMP_IMPORT
     int             usm_create_user_from_session(netsnmp_session * session);

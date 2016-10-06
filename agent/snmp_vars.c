@@ -41,6 +41,11 @@ PERFORMANCE OF THIS SOFTWARE.
  * Copyright © 2003 Sun Microsystems, Inc. All rights reserved.
  * Use is subject to license terms specified in the COPYING file
  * distributed with the Net-SNMP package.
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 
 /*
@@ -48,12 +53,6 @@ PERFORMANCE OF THIS SOFTWARE.
  * (schoenfr@ibr.cs.tu-bs.de) 1994/1995.
  * Linux additions taken from CMU to UCD stack by Jennifer Bray of Origin
  * (jbray@origin-at.co.uk) 1997
- */
-/*
- * Portions of this file are copyrighted by:
- * Copyright © 2003 Sun Microsystems, Inc. All rights reserved.
- * Use is subject to license terms specified in the COPYING file
- * distributed with the Net-SNMP package.
  */
 
 /*
@@ -236,6 +235,9 @@ u_char          return_buf[258];
 u_char          return_buf[256];        /* nee 64 */
 #endif
 
+static int
+_warn_if_all_disabled(int maj, int min, void *serverarg, void *clientarg);
+
 int             callback_master_num = -1;
 
 #ifdef NETSNMP_TRANSPORT_CALLBACK_DOMAIN
@@ -304,7 +306,13 @@ init_agent(const char *app)
 #endif
 
     _init_agent_callback_transport();
-    
+
+#ifndef NETSNMP_FEATURE_REMOVE_RUNTIME_DISABLE_VERSION
+    snmp_register_callback(SNMP_CALLBACK_LIBRARY,
+                           SNMP_CALLBACK_POST_READ_CONFIG,
+                           _warn_if_all_disabled, NULL);
+#endif /* NETSNMP_FEATURE_REMOVE_RUNTIME_DISABLE_VERSION */
+
     netsnmp_init_helpers();
     init_traps();
     netsnmp_container_init_list();
@@ -458,5 +466,48 @@ should_init(const char *module_name)
      */
     return DO_INITIALIZE;
 }
+
+static int
+_warn_if_all_disabled(int maj, int min, void *serverarg, void *clientarg)
+{
+    const char * name = netsnmp_ds_get_string(NETSNMP_DS_LIBRARY_ID,
+                                              NETSNMP_DS_LIB_APPTYPE);
+    const int agent_mode =  netsnmp_ds_get_boolean(NETSNMP_DS_APPLICATION_ID,
+                                                   NETSNMP_DS_AGENT_ROLE);
+    int enabled = 0;
+    if (NULL==name)
+        name = "snmpd";
+
+    if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID,
+                                NETSNMP_DS_LIB_DISABLE_V3))
+        ++enabled;
+#ifndef NETSNMP_DISABLE_SNMPV2C
+    if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID,
+                                NETSNMP_DS_LIB_DISABLE_V2c))
+        ++enabled;
+#endif /* NETSNMP_DISABLE_SNMPV2C */
+#ifndef NETSNMP_DISABLE_SNMPV1
+    if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID,
+                                NETSNMP_DS_LIB_DISABLE_V1))
+        ++enabled;
+#endif /* NETSNMP_DISABLE_SNMPV1 */
+
+    if (0 == enabled) {
+        if ((MASTER_AGENT == agent_mode) && (strcmp(name, "snmptrapd") != 0)) {
+            snmp_log(LOG_WARNING,
+                     "Warning: all protocol versions are runtime disabled.\n"
+                 "  It's unlikely this agent can serve any useful purpose in this state.\n"
+                     "  Check %s.conf file(s) for this agent.\n", name);
+        } else if (!strcmp(name, "snmptrapd") &&
+            !netsnmp_ds_get_boolean(NETSNMP_DS_APPLICATION_ID,
+                                    NETSNMP_DS_APP_NO_AUTHORIZATION)) {
+            snmp_log(LOG_WARNING,
+                     "Warning: all protocol versions are runtime disabled.\n"
+                     "This receiver will *NOT* accept any incoming notifications.\n");
+        }
+    }
+    return SNMP_ERR_NOERROR;
+}
+
 /**  @} */
 

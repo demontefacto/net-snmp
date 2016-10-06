@@ -7,6 +7,11 @@
  * Copyright @ 2009 Sun Microsystems, Inc. All rights reserved.
  * Use is subject to license terms specified in the COPYING file
  * distributed with the Net-SNMP package.
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
@@ -305,16 +310,18 @@ proxy_fill_in_session(netsnmp_mib_handler *handler,
     }
 
 #if !defined(NETSNMP_DISABLE_SNMPV1) || !defined(NETSNMP_DISABLE_SNMPV2C)
-#if defined(NETSNMP_DISABLE_SNMPV1)
-    if (session->version == SNMP_VERSION_2c) {
-#else
-#if defined(NETSNMP_DISABLE_SNMPV2C)
-    if (session->version == SNMP_VERSION_1) {
-#else
-    if (session->version == SNMP_VERSION_1 ||
-        session->version == SNMP_VERSION_2c) {
+    if (
+#ifndef NETSNMP_DISABLE_SNMPV1
+        ((session->version == SNMP_VERSION_1) &&
+         !netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID,
+                                 NETSNMP_DS_LIB_DISABLE_V1)) ||
 #endif
+#ifndef NETSNMP_DISABLE_SNMPV2C
+        ((session->version == SNMP_VERSION_2c) &&
+         !netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID,
+                                 NETSNMP_DS_LIB_DISABLE_V2c)) ||
 #endif
+        0 ) { /* 0 to terminate '||' above */
 
         /*
          * Check if session has community string defined for it.
