@@ -22,7 +22,7 @@ addons:
 # Try the new docker infrastructure
 sudo: false
 #
-# Try with and without --with-minimalist
+# Try with and without --enable-minimalist
 env:
    - EXTRACONFIG=
-   - EXTRACONFIG=--with-minimalist
+   - EXTRACONFIG=--enable-minimalist
