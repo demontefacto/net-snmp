@@ -2,7 +2,13 @@ language: c
 compiler:
  - clang
  - gcc
-script: ./configure --with-defaults --with-python-modules --with-security-modules=tsm --with-transports="DTLSUDP TLSTCP" --with-security-modules="usm tsm" --with-mib-modules="examples/example ucd-snmp/extensible" --enable-ipv6 --enable-silent-libtool $EXTRACONFIG && make && blddir=`pwd` && mkdir -p localperl && cd perl && PATH=$blddir:$PATH perl Makefile.PL INSTALL_BASE=$blddir/localperl && make install && cd .. && cd testing && PERLLIB=$blddir/localperl ./RUNFULLTESTS -g all
+# TODO:
+# * figure out how to get perl libs installed "enough" to run tests.
+#   I tried: blddir=`pwd` && mkdir -p localperl && cd perl && PATH=$blddir:$PATH perl Makefile.PL INSTALL_BASE=$blddir/localperl && make install && cd ..
+#   but that hangs, asking where to find the MIBs.
+# The list of groups below is all minus perl, since I don't have
+# the perl module installed yet.
+script: ./configure --with-defaults --with-python-modules --with-security-modules=tsm --with-transports="DTLSUDP TLSTCP" --with-security-modules="usm tsm" --with-mib-modules="examples/example ucd-snmp/extensible" --enable-ipv6 --enable-silent-libtool $EXTRACONFIG && make && cd testing && ./RUNFULLTESTS -g default,snmpv3,support,tls,transports,unit-tests
 # We need libperl-dev to build with perl
 # and libpython-dev to build with python
 # For now we don't attempt to require specific versions.
